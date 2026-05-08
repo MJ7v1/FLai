@@ -84,19 +84,33 @@ with st.sidebar:
         selected_name = st.selectbox("Select previous melody", history_names)
         
         if st.button("Load History"):
-            item = next(m for m in st.session_state.history_list if m['melody_name'] == selected_name)
-            # JSON-லிருந்து மீண்டும் நோட்களாக மாற்றுதல்
-            notes_dict = item['notes_data']
-            sorted_notes = [notes_dict[k] for k in sorted(notes_dict.keys(), key=lambda x: int(x[1:]))]
-            
-            # ரீ-ஜெனரேட் செய்தல் (எளிமைக்காக)
-            st.session_state.current = {
-                'id': item['melody_name'],
-                'notes': sorted_notes,
-                'times': list(range(len(sorted_notes))),
-                'durs': [1.0] * len(sorted_notes),
-                'bpm': 100 # Default
-            }
+if st.button("Load History"):
+    # 1. தேர்ந்தெடுக்கப்பட்ட மெலடியை ஹிஸ்டரியில் இருந்து எடுத்தல்
+    item = next(m for m in st.session_state.history_list if m['melody_name'] == selected_name)
+    
+    # 2. JSON-லிருந்து நோட்ஸ்களை எடுத்தல்
+    notes_dict = item['notes_data']
+    # n1, n2 வரிசைப்படி அடுக்கி லிஸ்ட்டாக மாற்றுதல்
+    sorted_keys = sorted(notes_dict.keys(), key=lambda x: int(x[1:]))
+    sorted_notes = [notes_dict[k] for k in sorted_keys]
+    
+    # 3. லோட் செய்யும் மெலடிக்கான நேரத்தையும் ஆடியோவையும் உருவாக்குதல் 🔊
+    m_times = list(range(len(sorted_notes)))
+    m_durs = [1.0] * len(sorted_notes)
+    bpm = 100 
+    
+    # மிக முக்கியம்: ஆடியோவை உருவாக்கி current-இல் சேர்த்தல்
+    audio_data = synthesize_audio(sorted_notes, m_times, m_durs, bpm)
+    
+    st.session_state.current = {
+        'id': item['melody_name'],
+        'notes': sorted_notes,
+        'times': m_times,
+        'durs': m_durs,
+        'bpm': bpm,
+        'audio': audio_data # இப்போது audio இங்கே இருக்கும்! ✅
+    }
+    st.rerun() # திரையை உடனே புதுப்பிக்க
 
 # --- 6. பிரதான செயல்பாடு ---
 if st.button("Generate & Save to Cloud 🤖"):
