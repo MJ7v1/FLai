@@ -172,4 +172,27 @@ url: str = "https://iryagjzdzqxqsqqhowcu.supabase.co/rest/v1/"
 key: str = "sb_publishable_eJqUvTMF80eliQTCLLVkYg_OrQiTCsG"
 
 # சுபபேஸ் கிளையண்டை உருவாக்குதல்
+
 supabase: Client = create_client(url, key)
+notes = [60, 64, 67] # நம்மிடம் இருக்கும் நோட்கள்
+notes_dict = {}
+
+# ஒவ்வொரு நோட்டிற்கும் n1, n2 எனப் பெயரிடுதல்
+for i, note in enumerate(notes):
+    notes_dict[f"n{i+1}"] = note
+
+print(notes_dict) 
+# விடை: {'n1': 60, 'n2': 64, 'n3': 67}
+data = {
+    "melody_name": "FLai_Happy_1",
+    "mood": "😊 Happy",
+    "notes_data": notes_dict # இங்குதான் அந்த அகராதி சேமிக்கப்படுகிறது
+}
+
+# சுபபேஸ் அட்டவணையில் சேர்த்தல்
+response = supabase.table("melodies").insert(data).execute()
+# 'melodies' அட்டவணையில் உள்ள எல்லா தரவுகளையும் எடுக்க
+response = supabase.table("melodies").select("*").execute()
+
+# வந்திருக்கும் தரவுகளை மட்டும் பிரித்தெடுக்க
+all_melodies = response.data
