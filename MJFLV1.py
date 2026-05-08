@@ -8,7 +8,6 @@ import os
 from supabase import create_client, Client
 
 # --- 1. சுபபேஸ் இணைப்பு (Supabase Setup) ---
-# உங்கள் URL மற்றும் Key-ஐ இங்கே கொடுத்துள்ளேன்
 URL: str = "https://iryagjzdzqxqsqqhowcu.supabase.co"
 KEY: str = "sb_publishable_eJqUvTMF80eliQTCLLVkYg_OrQiTCsG"
 supabase: Client = create_client(URL, KEY)
@@ -28,9 +27,10 @@ MOOD_PROPS = {
 }
 ROOTS = {"C": 60, "D": 62, "E": 64, "F": 65, "G": 67, "A": 69, "B": 71}
 
-# --- 4. பயனுள்ள செயல்பாடுகள் (Functions) ---
+# --- 4. பயனுள்ள செயல்பாடுகள் ---
 
 def plot_piano_roll(m_notes, m_times, m_durs):
+    if not m_notes: return None
     fig, ax = plt.subplots(figsize=(12, 6))
     for note in range(min(m_notes)-2, max(m_notes)+3):
         is_black = (note % 12) in [1, 3, 6, 8, 10]
@@ -52,7 +52,7 @@ def synthesize_audio(notes, times, durs, bpm):
         t_arr = np.linspace(0, d * (60/bpm), end - start, False)
         envelope = np.sin(np.pi * np.linspace(0, 1, end-start))
         audio[start:end] += (np.sin(2 * np.pi * freq * t_arr) * envelope) * 0.3
-    audio = (audio * 32767 / np.max(np.abs(audio))).astype(np.int16)
+    audio = (audio * 32767 / (np.max(np.abs(audio)) if np.max(np.abs(audio)) > 0 else 1)).astype(np.int16)
     byte_io = io.BytesIO()
     import scipy.io.wavfile as wav
     wav.write(byte_io, sample_rate, audio)
@@ -62,7 +62,6 @@ def synthesize_audio(notes, times, durs, bpm):
 st.set_page_config(page_title="FLai V3.5 (DB Edition)", layout="wide")
 st.title("FLai: AI Music Assistant (Professional Database) 🎹☁️")
 
-# Sidebar
 with st.sidebar:
     st.header("Settings")
     root_choice = st.selectbox("Root Note", list(ROOTS.keys()))
@@ -72,7 +71,6 @@ with st.sidebar:
     st.markdown("---")
     st.subheader("History from Cloud 📜")
     
-    # DB-யிலிருந்து தரவுகளை எடுத்தல்
     try:
         response = supabase.table("melodies").select("*").execute()
         st.session_state.history_list = response.data
@@ -84,33 +82,26 @@ with st.sidebar:
         selected_name = st.selectbox("Select previous melody", history_names)
         
         if st.button("Load History"):
-if st.button("Load History"):
-    # 1. தேர்ந்தெடுக்கப்பட்ட மெலடியை ஹிஸ்டரியில் இருந்து எடுத்தல்
-    item = next(m for m in st.session_state.history_list if m['melody_name'] == selected_name)
-    
-    # 2. JSON-லிருந்து நோட்ஸ்களை எடுத்தல்
-    notes_dict = item['notes_data']
-    # n1, n2 வரிசைப்படி அடுக்கி லிஸ்ட்டாக மாற்றுதல்
-    sorted_keys = sorted(notes_dict.keys(), key=lambda x: int(x[1:]))
-    sorted_notes = [notes_dict[k] for k in sorted_keys]
-    
-    # 3. லோட் செய்யும் மெலடிக்கான நேரத்தையும் ஆடியோவையும் உருவாக்குதல் 🔊
-    m_times = list(range(len(sorted_notes)))
-    m_durs = [1.0] * len(sorted_notes)
-    bpm = 100 
-    
-    # மிக முக்கியம்: ஆடியோவை உருவாக்கி current-இல் சேர்த்தல்
-    audio_data = synthesize_audio(sorted_notes, m_times, m_durs, bpm)
-    
-    st.session_state.current = {
-        'id': item['melody_name'],
-        'notes': sorted_notes,
-        'times': m_times,
-        'durs': m_durs,
-        'bpm': bpm,
-        'audio': audio_data # இப்போது audio இங்கே இருக்கும்! ✅
-    }
-    st.rerun() # திரையை உடனே புதுப்பிக்க
+            item = next(m for m in st.session_state.history_list if m['melody_name'] == selected_name)
+            notes_dict = item['notes_data']
+            sorted_keys = sorted(notes_dict.keys(), key=lambda x: int(x[1:]))
+            sorted_notes = [notes_dict[k] for k in sorted_keys]
+            
+            m_times = list(np.arange(0, len(sorted_notes) * 1.0, 1.0))
+            m_durs = [1.0] * len(sorted_notes)
+            bpm = 100 
+            
+            audio_data = synthesize_audio(sorted_notes, m_times, m_durs, bpm)
+            
+            st.session_state.current = {
+                'id': item['melody_name'],
+                'notes': sorted_notes,
+                'times': m_times,
+                'durs': m_durs,
+                'bpm': bpm,
+                'audio': audio_data
+            }
+            st.rerun()
 
 # --- 6. பிரதான செயல்பாடு ---
 if st.button("Generate & Save to Cloud 🤖"):
@@ -126,17 +117,15 @@ if st.button("Generate & Save to Cloud 🤖"):
         if curr + dur > beats_choice: dur = float(beats_choice - curr)
         m_notes.append(note); m_times.append(curr); m_durs.append(dur); curr += dur
 
-    # நோட்களை n1, n2 என மாற்றுதல்
     notes_dict = {f"n{i+1}": n for i, n in enumerate(m_notes)}
     melody_id = f"FLai_{mood_choice.split()[-1]}_{random.randint(100,999)}"
 
-    # Supabase-இல் சேமித்தல்
     db_data = {"melody_name": melody_id, "mood": mood_choice, "notes_data": notes_dict}
     supabase.table("melodies").insert(db_data).execute()
 
     st.session_state.current = {
         'id': melody_id, 'notes': m_notes, 'times': m_times, 'durs': m_durs, 'bpm': props['bpm'],
-        'midi': None, 'audio': synthesize_audio(m_notes, m_times, m_durs, props['bpm'])
+        'audio': synthesize_audio(m_notes, m_times, m_durs, props['bpm'])
     }
     st.success(f"Saved to Cloud as {melody_id}!")
 
@@ -148,6 +137,6 @@ if st.session_state.current:
     fig = plot_piano_roll(curr['notes'], curr['times'], curr['durs'])
     col1, col2 = st.columns([2, 1])
     with col1:
-        st.pyplot(fig)
+        if fig: st.pyplot(fig)
     with col2:
         st.audio(curr['audio'], format='audio/wav')
