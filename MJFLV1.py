@@ -41,18 +41,35 @@ def plot_piano_roll(m_notes, m_times, m_durs):
     for n, t, d in zip(m_notes, m_times, m_durs):
         ax.add_patch(plt.Rectangle((t, n-0.4), d, 0.8, color='#1DB954', zorder=3))
     return fig
-
+    
 def synthesize_audio(notes, times, durs, bpm):
     sample_rate = 44100
     total_time = (max(times) + max(durs)) * (60/bpm)
     audio = np.zeros(int(total_time * sample_rate))
+    
     for n, t, d in zip(notes, times, durs):
         freq = 440.0 * (2.0 ** ((n - 69) / 12.0))
-        start, end = int(t * (60/bpm) * sample_rate), int((t + d) * (60/bpm) * sample_rate)
+        start = int(t * (60/bpm) * sample_rate)
+        end = int((t + d) * (60/bpm) * sample_rate)
         t_arr = np.linspace(0, d * (60/bpm), end - start, False)
-        envelope = np.sin(np.pi * np.linspace(0, 1, end-start))
-        audio[start:end] += (np.sin(2 * np.pi * freq * t_arr) * envelope) * 0.3
-    audio = (audio * 32767 / (np.max(np.abs(audio)) if np.max(np.abs(audio)) > 0 else 1)).astype(np.int16)
+        
+        # பியானோ போன்ற ஒலியை உருவாக்க பல அலைவரிசைகளை (Harmonics) சேர்த்தல் 🎹
+        # அடிப்படை அலை (Fundamental) + மேல் தொனிகள் (Overtones)
+        wave = 0.6 * np.sin(2 * np.pi * freq * t_arr)      # f
+        wave += 0.3 * np.sin(2 * np.pi * 2 * freq * t_arr)  # 2f
+        wave += 0.1 * np.sin(2 * np.pi * 3 * freq * t_arr)  # 3f
+        
+        # Exponential Decay: சத்தம் மெல்ல தேய்ந்து மறைவதற்கு 📉
+        # இதுதான் பியானோவின் இயற்கையான தன்மையை கொடுக்கும்
+        decay = np.exp(-3 * t_arr / (d * (60/bpm)))
+        envelope = np.sin(np.pi * np.linspace(0, 1, end-start)) * decay
+        
+        audio[start:end] += (wave * envelope) * 0.3
+
+    # Normalize audio
+    max_val = np.max(np.abs(audio))
+    audio = (audio * 32767 / (max_val if max_val > 0 else 1)).astype(np.int16)
+    
     byte_io = io.BytesIO()
     import scipy.io.wavfile as wav
     wav.write(byte_io, sample_rate, audio)
