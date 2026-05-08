@@ -80,18 +80,18 @@ with st.sidebar:
         st.error("Database connection failed!")
 
     if st.session_state.history_list:
-        history_names = [m['melodies'] for m in st.session_state.history_list]
+        history_names = [m['melody_name'] for m in st.session_state.history_list]
         selected_name = st.selectbox("Select previous melody", history_names)
         
         if st.button("Load History"):
-            item = next(m for m in st.session_state.history_list if m['melodies'] == selected_name)
+            item = next(m for m in st.session_state.history_list if m['melody_name'] == selected_name)
             # JSON-லிருந்து மீண்டும் நோட்களாக மாற்றுதல்
             notes_dict = item['notes_data']
             sorted_notes = [notes_dict[k] for k in sorted(notes_dict.keys(), key=lambda x: int(x[1:]))]
             
             # ரீ-ஜெனரேட் செய்தல் (எளிமைக்காக)
             st.session_state.current = {
-                'id': item['melodies'],
+                'id': item['melody_name'],
                 'notes': sorted_notes,
                 'times': list(range(len(sorted_notes))),
                 'durs': [1.0] * len(sorted_notes),
@@ -117,7 +117,7 @@ if st.button("Generate & Save to Cloud 🤖"):
     melody_id = f"FLai_{mood_choice.split()[-1]}_{random.randint(100,999)}"
 
     # Supabase-இல் சேமித்தல்
-    db_data = {"melodies": melody_id, "mood": mood_choice, "notes_data": notes_dict}
+    db_data = {"melody_name": melody_id, "mood": mood_choice, "notes_data": notes_dict}
     supabase.table("melodies").insert(db_data).execute()
 
     st.session_state.current = {
