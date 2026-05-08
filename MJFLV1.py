@@ -165,4 +165,11 @@ if 'current' in st.session_state:
         st.write("### Playback 🔊")
         st.audio(c['audio'], format='audio/wav')
         st.download_button("Download MIDI 📥", c['midi'], f"{c['id']}.mid")
+from supabase import create_client, Client
 
+# உங்கள் சுபபேஸ் தகவல்கள்
+url: str = "https://iryagjzdzqxqsqqhowcu.supabase.co/rest/v1/"
+key: str = "sb_publishable_eJqUvTMF80eliQTCLLVkYg_OrQiTCsG"
+
+# சுபபேஸ் கிளையண்டை உருவாக்குதல்
+supabase: Client = create_client(url, key)
