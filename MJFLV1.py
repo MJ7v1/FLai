@@ -143,13 +143,6 @@ if st.button("Generate & Train AI 🤖"):
     # Audio உருவாக்குதல்
     audio_data = synthesize_audio(m_notes, m_times, m_durs, props['bpm'])
     
-# 1. முதலில் ஒரு காலியான பட்டியலை உருவாக்க வேண்டும்
-if 'history' not in st.session_state:
-    st.session_state.history = []
-
-# 2. மெலடி உருவான பிறகு அதை பட்டியலில் சேர்க்க வேண்டும்
-st.session_state.history.append(st.session_state.current)
-    
     # எண்ணிக்கை சேமிப்பு
     count = get_next_count() + 1
     save_count(count)
@@ -172,3 +165,4 @@ if 'current' in st.session_state:
         st.write("### Playback 🔊")
         st.audio(c['audio'], format='audio/wav')
         st.download_button("Download MIDI 📥", c['midi'], f"{c['id']}.mid")
+
