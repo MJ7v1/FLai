@@ -45,7 +45,7 @@ def set_bg_image(image_file):
 st.set_page_config(page_title="FLai V3.5", layout="wide")
 
 # பின்னணியை செட் செய்கிறோம் (Assets folder-இல் படம் இருக்க வேண்டும்)
-set_bg_image('assets/1000191225.png')
+set_bg_image('1000191225.png')
 
 # --- 3. சுபபேஸ் இணைப்பு (Supabase Setup) ---
 URL = "https://iryagjzdzqxqsqqhowcu.supabase.co"
