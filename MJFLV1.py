@@ -58,13 +58,14 @@ with st.sidebar:
         
         c1, c2 = st.columns(2)
         if c1.button("Login"):
-            try:
-                res = supabase.auth.sign_in_with_password({"email": email, "password": pw})
-                st.session_state.logged_in = True
-                st.session_state.user_email = email
-                st.rerun()
-            except Exception as e:
-                st.error("Login Failed!")
+          try:
+              res = supabase.auth.sign_in_with_password({"email": email, "password": pw})
+              st.session_state.logged_in = True
+              st.session_state.user_email = email
+             st.rerun()
+           except Exception as e:
+              st.error(f"Error: {e}") # இங்கே பிழை என்னவென்று நேரடியாகக் காட்டும்
+
                 
         if c2.button("Sign Up"):
             try:
@@ -77,7 +78,7 @@ with st.sidebar:
         if st.button("Logout"):
             st.session_state.logged_in = False
             st.rerun()
-
+    
 # --- 5. MAIN APP LOGIC ---
 
 if st.session_state.logged_in:
