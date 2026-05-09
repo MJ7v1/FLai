@@ -63,7 +63,7 @@ with st.sidebar:
               st.session_state.logged_in = True
               st.session_state.user_email = email
               st.rerun()
-           except Exception as e:
+          except Exception as e:
               st.error(f"Error: {e}") # இங்கே பிழை என்னவென்று நேரடியாகக் காட்டும்
 
                 
