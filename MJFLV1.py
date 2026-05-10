@@ -39,7 +39,7 @@ def set_bg_image(image_file):
 
 # --- 2. தொடக்க நிலை அமைப்புகள் ---
 st.set_page_config(page_title="FLai V3.5 Pro", layout="wide")
-set_bg_image('1000191225.png')
+set_bg_image('Picsart_26-05-11_03-13-40-674.png')
 
 # சுபபேஸ் இணைப்பு
 URL = "https://iryagjzdzqxqsqqhowcu.supabase.co"
