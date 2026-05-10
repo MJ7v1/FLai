@@ -46,7 +46,7 @@ URL = "https://iryagjzdzqxqsqqhowcu.supabase.co"
 KEY = "sb_publishable_eJqUvTMF80eliQTCLLVkYg_OrQiTCsG"
 supabase: Client = create_client(URL, KEY)
 
-# Session State
+# Session State Initialization
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user_email' not in st.session_state: st.session_state.user_email = ""
 if 'current' not in st.session_state: st.session_state.current = None
@@ -63,52 +63,72 @@ ROOTS = {"C": 60, "D": 62, "E": 64, "F": 65, "G": 67, "A": 69, "B": 71}
 
 def synthesize_audio(notes, times, durs, bpm):
     sample_rate = 44100
-    if not notes: return None
+    if not notes or not times: return None
     total_time = (max(times) + max(durs)) * (60/bpm)
-    audio = np.zeros(int(total_time * sample_rate) + 100)
+    audio = np.zeros(int(total_time * sample_rate) + 1000)
+    
     for n, t, d in zip(notes, times, durs):
         freq = 440.0 * (2.0 ** ((n - 69) / 12.0))
         start = int(t * (60/bpm) * sample_rate)
         end = int((t + d) * (60/bpm) * sample_rate)
         t_arr = np.linspace(0, d * (60/bpm), end - start, False)
+        # Piano-like Harmonics
         wave = (0.6 * np.sin(2 * np.pi * freq * t_arr) + 0.3 * np.sin(2 * np.pi * 2 * freq * t_arr))
         decay = np.exp(-3 * t_arr / (d * (60/bpm)))
         audio[start:end] += (wave * decay) * 0.3
-    audio = (audio * 32767 / np.max(np.abs(audio))).astype(np.int16)
+        
+    # Normalize
+    if np.max(np.abs(audio)) > 0:
+        audio = (audio * 32767 / np.max(np.abs(audio))).astype(np.int16)
+    
     byte_io = io.BytesIO()
     wav.write(byte_io, sample_rate, audio)
     return byte_io.getvalue()
 
 def plot_piano_roll(m_notes, m_times, m_durs):
     if not m_notes: return None
-    fig, ax = plt.subplots(figsize=(10, 4))
+    fig, ax = plt.subplots(figsize=(12, 5))
     fig.patch.set_facecolor('black')
-    ax.set_facecolor('#1a1a1a')
-    # பின்னணி கட்டங்கள் (Grid)
-    for note in range(min(m_notes)-1, max(m_notes)+2):
-        ax.axhline(note, color='white', alpha=0.1, linewidth=0.5)
-    # நோட்ஸை வரைதல்
+    ax.set_facecolor('#111111')
+    
+    # வரைபடம் சரியாகத் தெரிய எல்லைகளை அமைக்கிறோம் (Scaling)
+    ax.set_ylim(min(m_notes) - 3, max(m_notes) + 3)
+    ax.set_xlim(0, max(m_times) + max(m_durs) + 1)
+    
+    # கிடைமட்டக் கோடுகள் (Horizontal Grids)
+    for note in range(int(min(m_notes)-2), int(max(m_notes)+3)):
+        ax.axhline(note, color='white', alpha=0.05, linewidth=0.5)
+
+    # நோட்ஸை வரைதல் (Drawing Notes)
     for n, t, d in zip(m_notes, m_times, m_durs):
-        ax.add_patch(plt.Rectangle((t, n-0.4), d, 0.8, color='#1DB954', alpha=0.9, edgecolor='white', linewidth=0.5))
-    ax.set_xlabel("Time (Beats)", color='white')
-    ax.set_ylabel("MIDI Note", color='white')
-    ax.tick_params(colors='white')
-    plt.grid(axis='x', color='white', alpha=0.1)
+        ax.add_patch(plt.Rectangle((t, n-0.4), d, 0.8, color='#1DB954', alpha=0.9, edgecolor='white', linewidth=0.3))
+    
+    ax.set_xlabel("Time (Beats)", color='white', fontsize=10)
+    ax.set_ylabel("MIDI Note", color='white', fontsize=10)
+    ax.tick_params(colors='white', which='both')
+    ax.grid(axis='x', color='white', alpha=0.1)
+    
     return fig
 
 # --- 4. SIDEBAR ---
 with st.sidebar:
     if not st.session_state.logged_in:
-        st.header("Login 🔑")
+        st.header("Login / Sign Up 🔑")
         email = st.text_input("Email")
         pw = st.text_input("Password", type="password")
-        if st.button("Login"):
+        c1, c2 = st.columns(2)
+        if c1.button("Login"):
             try:
-                res = supabase.auth.sign_in_with_password({"email": email, "password": pw})
+                supabase.auth.sign_in_with_password({"email": email, "password": pw})
                 st.session_state.logged_in = True
                 st.session_state.user_email = email
                 st.rerun()
             except: st.error("Login Failed!")
+        if c2.button("Sign Up"):
+            try:
+                supabase.auth.sign_up({"email": email, "password": pw})
+                st.success("Account Created!")
+            except: st.error("Sign up failed.")
     else:
         st.write(f"User: **{st.session_state.user_email}**")
         if st.button("Logout"):
@@ -116,9 +136,10 @@ with st.sidebar:
             st.rerun()
         
         st.markdown("---")
+        st.header("Melody Settings")
         root_choice = st.selectbox("Root Note", list(ROOTS.keys()))
         mood_choice = st.selectbox("Select Mood", list(MOOD_PROPS.keys()))
-        beats_choice = st.slider("Duration", 4, 32, 16)
+        beats_choice = st.slider("Duration (Beats)", 4, 32, 16)
         
         st.markdown("---")
         st.subheader("Cloud History 📜")
@@ -131,17 +152,18 @@ with st.sidebar:
                 if st.button("Load History"):
                     item = next(m for m in st.session_state.history_list if m['melody_name'] == sel_name)
                     n_dict = item['notes_data']
-                    # நோட்ஸை வரிசைப்படுத்தி மீட்டெடுத்தல்
+                    # நோட்ஸை வரிசைப்படுத்தி எடுப்பது முக்கியம்
                     s_notes = [n_dict[k] for k in sorted(n_dict.keys(), key=lambda x: int(x[1:]))]
-                    s_times = list(np.arange(0, len(s_notes) * 1.0, 1.0))
+                    s_times = [float(i) for i in range(len(s_notes))] # Default 1 beat interval
                     s_durs = [1.0] * len(s_notes)
+                    
                     st.session_state.current = {
                         'id': item['melody_name'], 'notes': s_notes, 'times': s_times, 
                         'durs': s_durs, 'bpm': 100, 'audio': synthesize_audio(s_notes, s_times, s_durs, 100)
                     }
-                    st.success(f"Loaded: {sel_name}")
+                    st.success("Loaded!")
                     st.rerun()
-        except: st.sidebar.warning("Cloud data loading...")
+        except: st.sidebar.warning("Database connection...")
 
 # --- 5. MAIN APP ---
 if st.session_state.logged_in:
@@ -153,17 +175,16 @@ if st.session_state.logged_in:
         scale = [root_midi + i for i in props['scale']]
         
         m_notes, m_times, m_durs = [], [], []
-        curr = 0
+        curr = 0.0
         while curr < beats_choice:
             note = random.choice(scale) + random.choice(props['pattern'])
             dur = random.choice(props['durations'])
             if curr + dur > beats_choice: dur = float(beats_choice - curr)
             m_notes.append(note); m_times.append(curr); m_durs.append(dur); curr += dur
 
-        melody_id = f"FLai_{random.randint(100,999)}"
+        melody_id = f"FLai_{mood_choice.split()[-1]}_{random.randint(100,999)}"
         notes_dict = {f"n{i+1}": n for i, n in enumerate(m_notes)}
         
-        # Database upload
         try:
             supabase.table("melodies").insert({"melody_name": melody_id, "mood": mood_choice, "notes_data": notes_dict}).execute()
             st.session_state.current = {
@@ -171,14 +192,22 @@ if st.session_state.logged_in:
                 'audio': synthesize_audio(m_notes, m_times, m_durs, props['bpm'])
             }
             st.success(f"Saved: {melody_id}")
-        except Exception as e: st.error(f"Save Failed: {e}")
+        except Exception as e: st.error(f"Cloud Save Error: {e}")
 
+    # Display Current Melody
     if st.session_state.current:
         curr = st.session_state.current
-        st.subheader(f"Track: {curr['id']}")
+        st.markdown(f"### 🎵 Now Playing: {curr['id']}")
+        
         fig = plot_piano_roll(curr['notes'], curr['times'], curr['durs'])
-        if fig: st.pyplot(fig)
-        st.audio(curr['audio'], format='audio/wav')
+        
+        col1, col2 = st.columns([3, 1])
+        with col1:
+            if fig: st.pyplot(fig)
+        with col2:
+            st.audio(curr['audio'], format='audio/wav')
+            st.write(f"BPM: {curr['bpm']}")
+            st.write(f"Notes: {len(curr['notes'])}")
 else:
     st.title("Welcome to FLai 🎹")
-    st.info("Sidebar-இல் Login செய்து உங்கள் இசையை உருவாக்கத் தொடங்குங்கள்!")
+    st.info("இடதுபுறம் உள்ள Sidebar-இல் Login செய்து உங்கள் இசையை உருவாக்கத் தொடங்குங்கள்!")
