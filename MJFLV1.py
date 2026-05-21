@@ -20,9 +20,14 @@ def set_bg_image(image_file):
     if bin_str:
         st.markdown(f'''
         <style>
-        .stApp {{ background-image: url("data:image/png;base64,{bin_str}"); background-size: cover; }}
-        h1, h2, h3, p, span, .stMarkdown, .stText, label {{ color: white !important; text-shadow: 2px 2px 4px #000000; }}
-        [data-testid="stSidebar"] {{ background-color: rgba(0, 0, 0, 0.8) !important; }}
+        .stApp {{
+            background-image: url("data:image/png;base64,{bin_str}");
+            background-size: contain; /* படத்தைச் சுருக்கி முழுமையாகக் காட்ட */
+            background-repeat: no-repeat; /* படம் மீண்டும் மீண்டும் வராமல் தடுக்க */
+            background-attachment: fixed;
+            background-position: center; /* படத்தை மையப்படுத்த */
+        }}
+        ...
         </style>
         ''', unsafe_allow_html=True)
 
