@@ -20,14 +20,9 @@ def set_bg_image(image_file):
     if bin_str:
         st.markdown(f'''
         <style>
-        .stApp {{
-            background-image: url("data:image/png;base64,{bin_str}");
-            background-size: contain; /* படத்தைச் சுருக்கி முழுமையாகக் காட்ட */
-            background-repeat: no-repeat; /* படம் மீண்டும் மீண்டும் வராமல் தடுக்க */
-            background-attachment: fixed;
-            background-position: center; /* படத்தை மையப்படுத்த */
-        }}
-        ...
+        .stApp {{ background-image: url("data:image/png;base64,{bin_str}"); background-size: contain; background-repeat: no-repeat; background-attachment: fixed; background-position: center; }}
+        h1, h2, h3, p, span, .stMarkdown, .stText, label {{ color: white !important; text-shadow: 2px 2px 4px #000000; }}
+        [data-testid="stSidebar"] {{ background-color: rgba(0, 0, 0, 0.8) !important; }}
         </style>
         ''', unsafe_allow_html=True)
 
@@ -42,8 +37,9 @@ supabase: Client = create_client(URL, KEY)
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user_email' not in st.session_state: st.session_state.user_email = ""
 if 'current' not in st.session_state: st.session_state.current = None
+if 'history_list' not in st.session_state: st.session_state.history_list = []
 
-# --- 3. மியூசிக் லாஜிக் (முந்தைய கோடில் இருந்த அதே லாஜிக்) ---
+# --- 3. மியூசிக் லாஜிக் ---
 MOOD_PROPS = {
     "😊 Happy": {"scale": [0, 2, 4, 5, 7, 9, 11], "bpm": 124, "pattern": [0, 4, 7, 12], "durations": [0.5, 0.5]},
     "😢 Sad": {"scale": [0, 2, 3, 5, 7, 8, 10], "bpm": 60, "pattern": [0, 2, 3, 5], "durations": [1.0, 2.0]},
@@ -81,23 +77,19 @@ def plot_piano_roll(m_notes, m_times, m_durs):
     ax.tick_params(colors='white')
     return fig
 
-# --- 4. SIDEBAR (Fixed Login Logic) ---
+# --- 4. SIDEBAR ---
 with st.sidebar:
     if not st.session_state.logged_in:
         st.header("Login 🔑")
         email = st.text_input("Email")
         pw = st.text_input("Password", type="password")
-        
         if st.button("Login"):
-            try:
-                # Supabase Login
-                res = supabase.auth.sign_in_with_password({"email": email, "password": pw})
-                if res.user:
-                    st.session_state.logged_in = True
-                    st.session_state.user_email = email
-                    st.rerun() # லாகின் ஆனவுடன் ரீரன் செய்யும்
-            except Exception:
-                st.error("Invalid credentials!")
+            res = supabase.auth.sign_in_with_password({"email": email, "password": pw})
+            if res.user:
+                st.session_state.logged_in = True
+                st.session_state.user_email = email
+                st.rerun()
+            else: st.error("Login Failed!")
     else:
         st.write(f"User: **{st.session_state.user_email}**")
         if st.button("Logout"):
@@ -105,34 +97,32 @@ with st.sidebar:
             st.session_state.logged_in = False
             st.rerun()
         
-        # Settings
         root_choice = st.selectbox("Root", list(ROOTS.keys()))
         mood_choice = st.selectbox("Mood", list(MOOD_PROPS.keys()))
         beats_choice = st.slider("Beats", 4, 32, 16)
-st.markdown("---")
+        
+        st.markdown("---")
         st.subheader("Cloud History 📜")
-        if st.sidebar.button("Refresh History"): # பட்டன் கிளிக் செய்தால் மட்டும் லோட் ஆகும்
-            try:
-                res = supabase.table("melodies").select("*").execute()
-                st.session_state.history_list = res.data
-            except Exception as e:
-                st.sidebar.error(f"DB Error: {e}")
+        if st.button("Refresh History"):
+            res = supabase.table("melodies").select("*").execute()
+            st.session_state.history_list = res.data
 
-        # history_list இருந்தால் மட்டும் selectbox-ஐக் காட்டு
         if st.session_state.history_list:
             h_names = [m['melody_name'] for m in st.session_state.history_list]
             sel_name = st.selectbox("Load Previous", h_names)
             if st.button("Load History"):
-                # (Load logic...)
-        else:
-            st.sidebar.info("No history found or press Refresh.")
-
+                item = next(m for m in st.session_state.history_list if m['melody_name'] == sel_name)
+                n_dict = item['notes_data']
+                s_notes = [n_dict[k] for k in sorted(n_dict.keys(), key=lambda x: int(x[1:]))]
+                s_times = [float(i) for i in range(len(s_notes))]
+                s_durs = [1.0] * len(s_notes)
+                st.session_state.current = {'notes': s_notes, 'times': s_times, 'durs': s_durs, 'bpm': 100, 'audio': synthesize_audio(s_notes, s_times, s_durs, 100)}
+                st.rerun()
 
 # --- 5. MAIN APP ---
 if st.session_state.logged_in:
     st.title("FLai: AI Music Assistant 🎹☁️")
     if st.button("Generate & Save"):
-        # (Generate logic remains same as before)
         props = MOOD_PROPS[mood_choice]
         scale = [ROOTS[root_choice] + i for i in props['scale']]
         m_notes, m_times, m_durs = [], [], []
@@ -142,7 +132,6 @@ if st.session_state.logged_in:
             dur = random.choice(props['durations'])
             if curr + dur > beats_choice: dur = beats_choice - curr
             m_notes.append(note); m_times.append(curr); m_durs.append(dur); curr += dur
-        
         st.session_state.current = {'notes': m_notes, 'times': m_times, 'durs': m_durs, 'bpm': props['bpm'], 'audio': synthesize_audio(m_notes, m_times, m_durs, props['bpm'])}
     
     if st.session_state.current:
