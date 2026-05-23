@@ -20,20 +20,33 @@ def set_bg_image(image_file):
     if bin_str:
         st.markdown(f'''
         <style>
-        .stApp {{ background-image: url("data:image/png;base64,{bin_str}"); background-size: contain; background-repeat: no-repeat; background-attachment: fixed; background-position: center; }}
-        h1, h2, h3, p, span, .stMarkdown, .stText, label {{ color: white !important; text-shadow: 2px 2px 4px #000000; }}
-        [data-testid="stSidebar"] {{ background-color: rgba(0, 0, 0, 0.8) !important; }}
+        .stApp {{
+            background-image: url("data:image/png;base64,{bin_str}");
+            background-size: cover; /* படத்தை திரையின் அளவிற்குப் பொருத்த */
+            background-attachment: fixed;
+            background-position: center;
+        }}
+        h1, h2, h3, p, span, .stMarkdown, .stText, label {{
+            color: white !important;
+            text-shadow: 2px 2px 4px #000000; /* எழுத்துக்கள் தெளிவாகத் தெரிய நிழல் */
+        }}
+        [data-testid="stSidebar"] {{
+            background-color: rgba(0, 0, 0, 0.8) !important; /* Sidebar மங்கலான கருப்பு */
+        }}
         </style>
         ''', unsafe_allow_html=True)
 
-# --- 2. Setup ---
+# --- 2. தொடக்க நிலை அமைப்புகள் ---
 st.set_page_config(page_title="FLai V3.5 Pro", layout="wide")
-set_bg_image('image2.png')
+# பின்னணிப் படம் 'assets' ஃபோல்டரில் இருப்பதாகக் கொள்வோம்
+set_bg_image('assets/image2.png')
 
+# Supabase இணைப்பு விவரங்கள் (மாற்ற வேண்டாம்)
 URL = "https://iryagjzdzqxqsqqhowcu.supabase.co"
 KEY = "sb_publishable_eJqUvTMF80eliQTCLLVkYg_OrQiTCsG"
 supabase: Client = create_client(URL, KEY)
 
+# Session StateInitialization
 if 'logged_in' not in st.session_state: st.session_state.logged_in = False
 if 'user_email' not in st.session_state: st.session_state.user_email = ""
 if 'current' not in st.session_state: st.session_state.current = None
@@ -41,10 +54,10 @@ if 'history_list' not in st.session_state: st.session_state.history_list = []
 
 # --- 3. மியூசிக் லாஜிக் ---
 MOOD_PROPS = {
-    "😊 Happy": {"scale": [0, 2, 4, 5, 7, 9, 11], "bpm": 124, "pattern": [0, 4, 7, 12], "durations": [0.5, 0.5]},
-    "😢 Sad": {"scale": [0, 2, 3, 5, 7, 8, 10], "bpm": 60, "pattern": [0, 2, 3, 5], "durations": [1.0, 2.0]},
-    "😱 Horror": {"scale": [0, 1, 6, 7, 11], "bpm": 45, "pattern": [0, 1, 6], "durations": [0.5, 2.0, 4.0]},
-    "🎤 RAP": {"scale": [0, 1, 3, 5, 7, 8, 10], "bpm": 90, "pattern": [0, 0, 3, 0], "durations": [0.25, 0.5]}
+    "😊 Happy": {"scale": [0, 2, 4, 5, 7, 9, 11], "bpm": 124, "durations": [0.5, 1.0]},
+    "😢 Sad": {"scale": [0, 2, 3, 5, 7, 8, 10], "bpm": 60, "durations": [1.0, 2.0]},
+    "😱 Horror": {"scale": [0, 1, 6, 7, 11], "bpm": 45, "durations": [1.0, 2.0, 4.0]},
+    "🎤 RAP": {"scale": [0, 1, 3, 5, 7, 8, 10], "bpm": 90, "durations": [0.25, 0.5]}
 }
 ROOTS = {"C": 60, "D": 62, "E": 64, "F": 65, "G": 67, "A": 69, "B": 71}
 
@@ -58,85 +71,31 @@ def synthesize_audio(notes, times, durs, bpm):
         start = int(t * (60/bpm) * sample_rate)
         end = int((t + d) * (60/bpm) * sample_rate)
         t_arr = np.linspace(0, d * (60/bpm), end - start, False)
-        wave = (0.6 * np.sin(2 * np.pi * freq * t_arr) + 0.3 * np.sin(2 * np.pi * 2 * freq * t_arr))
+        # Piano-like wave form with harmonics
+        wave = (0.6 * np.sin(2 * np.pi * freq * t_arr) + 
+                0.3 * np.sin(2 * np.pi * 2 * freq * t_arr) + 
+                0.1 * np.sin(2 * np.pi * 3 * freq * t_arr))
+        # Decay envelope
         decay = np.exp(-3 * t_arr / (d * (60/bpm)))
         audio[start:end] += (wave * decay) * 0.3
-    audio = (audio * 32767 / np.max(np.abs(audio))).astype(np.int16)
+        
+    # Normalize to 16-bit PCM range
+    if np.max(np.abs(audio)) > 0:
+        audio = (audio * 32767 / np.max(np.abs(audio))).astype(np.int16)
+        
     byte_io = io.BytesIO()
     wav.write(byte_io, sample_rate, audio)
     return byte_io.getvalue()
 
+# --- முக்கிய மாற்றம்: பியானோ ரோல் வரைபடம் ---
 def plot_piano_roll(m_notes, m_times, m_durs):
     if not m_notes: return None
     fig, ax = plt.subplots(figsize=(10, 4))
+    
+    # வரைபடத்தின் பின்னணி நிறம்
     fig.patch.set_facecolor('black')
     ax.set_facecolor('#1a1a1a')
-    ax.set_ylim(min(m_notes)-2, max(m_notes)+2)
-    for n, t, d in zip(m_notes, m_times, m_durs):
-        ax.add_patch(plt.Rectangle((t, n-0.4), d, 0.8, color='#1DB954'))
-    ax.tick_params(colors='white')
-    return fig
-
-# --- 4. SIDEBAR ---
-with st.sidebar:
-    if not st.session_state.logged_in:
-        st.header("Login 🔑")
-        email = st.text_input("Email")
-        pw = st.text_input("Password", type="password")
-        if st.button("Login"):
-            res = supabase.auth.sign_in_with_password({"email": email, "password": pw})
-            if res.user:
-                st.session_state.logged_in = True
-                st.session_state.user_email = email
-                st.rerun()
-            else: st.error("Login Failed!")
-    else:
-        st.write(f"User: **{st.session_state.user_email}**")
-        if st.button("Logout"):
-            supabase.auth.sign_out()
-            st.session_state.logged_in = False
-            st.rerun()
-        
-        root_choice = st.selectbox("Root", list(ROOTS.keys()))
-        mood_choice = st.selectbox("Mood", list(MOOD_PROPS.keys()))
-        beats_choice = st.slider("Beats", 4, 32, 16)
-        
-        st.markdown("---")
-        st.subheader("Cloud History 📜")
-        if st.button("Refresh History"):
-            res = supabase.table("melodies").select("*").execute()
-            st.session_state.history_list = res.data
-
-        if st.session_state.history_list:
-            h_names = [m['melody_name'] for m in st.session_state.history_list]
-            sel_name = st.selectbox("Load Previous", h_names)
-            if st.button("Load History"):
-                item = next(m for m in st.session_state.history_list if m['melody_name'] == sel_name)
-                n_dict = item['notes_data']
-                s_notes = [n_dict[k] for k in sorted(n_dict.keys(), key=lambda x: int(x[1:]))]
-                s_times = [float(i) for i in range(len(s_notes))]
-                s_durs = [1.0] * len(s_notes)
-                st.session_state.current = {'notes': s_notes, 'times': s_times, 'durs': s_durs, 'bpm': 100, 'audio': synthesize_audio(s_notes, s_times, s_durs, 100)}
-                st.rerun()
-
-# --- 5. MAIN APP ---
-if st.session_state.logged_in:
-    st.title("FLai: AI Music Assistant 🎹☁️")
-    if st.button("Generate & Save"):
-        props = MOOD_PROPS[mood_choice]
-        scale = [ROOTS[root_choice] + i for i in props['scale']]
-        m_notes, m_times, m_durs = [], [], []
-        curr = 0
-        while curr < beats_choice:
-            note = random.choice(scale)
-            dur = random.choice(props['durations'])
-            if curr + dur > beats_choice: dur = beats_choice - curr
-            m_notes.append(note); m_times.append(curr); m_durs.append(dur); curr += dur
-        st.session_state.current = {'notes': m_notes, 'times': m_times, 'durs': m_durs, 'bpm': props['bpm'], 'audio': synthesize_audio(m_notes, m_times, m_durs, props['bpm'])}
     
-    if st.session_state.current:
-        fig = plot_piano_roll(st.session_state.current['notes'], st.session_state.current['times'], st.session_state.current['durs'])
-        st.pyplot(fig)
-        st.audio(st.session_state.current['audio'], format='audio/wav')
-else:
-    st.title("Welcome to FLai 🎹")
+    # Grid lines - நோட்களைத் தெளிவாகக் காட்ட
+    # கிடைமட்டக் கோடுகள் (ஆலஃபப்ஸ்பான் பயன்படுத்தி கருப்பு/வெள்ளை கட்டங்களைக் காட்டலாம், ஆனால் இங்கே எளிமைக்காக கோடுகள் மட்டும்)
+    for note in range(min(m_notes)-1, max(m_notes
