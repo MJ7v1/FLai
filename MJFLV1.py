@@ -109,6 +109,24 @@ with st.sidebar:
         root_choice = st.selectbox("Root", list(ROOTS.keys()))
         mood_choice = st.selectbox("Mood", list(MOOD_PROPS.keys()))
         beats_choice = st.slider("Beats", 4, 32, 16)
+st.markdown("---")
+        st.subheader("Cloud History 📜")
+        if st.sidebar.button("Refresh History"): # பட்டன் கிளிக் செய்தால் மட்டும் லோட் ஆகும்
+            try:
+                res = supabase.table("melodies").select("*").execute()
+                st.session_state.history_list = res.data
+            except Exception as e:
+                st.sidebar.error(f"DB Error: {e}")
+
+        # history_list இருந்தால் மட்டும் selectbox-ஐக் காட்டு
+        if st.session_state.history_list:
+            h_names = [m['melody_name'] for m in st.session_state.history_list]
+            sel_name = st.selectbox("Load Previous", h_names)
+            if st.button("Load History"):
+                # (Load logic...)
+        else:
+            st.sidebar.info("No history found or press Refresh.")
+
 
 # --- 5. MAIN APP ---
 if st.session_state.logged_in:
