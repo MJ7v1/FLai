@@ -40,7 +40,7 @@ def set_bg_image(image_file):
 # --- 2. தொடக்க நிலை அமைப்புகள் ---
 st.set_page_config(page_title="FLai V3.5 Pro", layout="wide")
 # பின்னணிப் படம் 'assets' ஃபோல்டரில் இருப்பதாகக் கொள்வோம்
-set_bg_image('assets/image2.png')
+set_bg_image('image2.png')
 
 # Supabase இணைப்பு விவரங்கள் (மாற்ற வேண்டாம்)
 URL = "https://iryagjzdzqxqsqqhowcu.supabase.co"
